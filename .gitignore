@@ -1,2 +1,3 @@
 # Vagrant Configs
-.vagrant
+.vagrant/machines/default/virtualbox/
+.vagrant/rgloader/
