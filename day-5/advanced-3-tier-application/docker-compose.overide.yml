@@ -1,0 +1,49 @@
+version: '3.8'
+
+# This file is automatically loaded by docker-compose in development
+# It OVERRIDES and EXTENDS the base docker-compose.yml
+
+services:
+  backend:
+    environment:
+      APP_ENV: development
+      FLASK_DEBUG: 1
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+    develop:
+      watch:
+        - action: sync
+          path: ./backend
+          target: /app
+        - action: rebuild
+          path: Dockerfile
+
+  frontend:
+    environment:
+      APP_ENV: development
+    volumes:
+      - ./frontend:/app
+      - /app/__pycache__
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend
+          target: /app
+        - action: rebuild
+          path: Dockerfile
+
+  database:
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"  # Expose DB port for local development
+
+  adminer:
+    image: adminer:4.8.1
+    networks:
+      - backend_net
+    ports:
+      - "8081:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: database

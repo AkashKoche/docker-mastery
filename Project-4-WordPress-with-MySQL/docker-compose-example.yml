@@ -1,0 +1,34 @@
+version: '3.8'
+services:
+  service_name:
+    image: image_name
+    ports:
+      - "host_port:container_port"
+    environment:
+      ENV_VAR: value
+    volumes:
+      - volume_name:path_in_container
+
+
+
+services:
+  web:
+    image: nginx
+  db:
+    image: mysql
+
+
+volumes:
+  db_data:
+
+
+
+networks:
+  app-network:
+    driver: bridge
+
+
+services:
+  web:
+    depends_on:
+      - db

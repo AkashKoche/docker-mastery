@@ -1,0 +1,61 @@
+version: '3.8'
+
+networks:
+  frontend-network:
+    driver: bridge
+  backend-network:
+    driver: bridge
+
+services:
+  db:
+    image: postgres:lts
+    environment:
+      POSTGRES_DB: mydb
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    networks:
+      - backend-network
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d mydb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+
+  backend:
+    build: ./backend
+    environement:
+      DB_HOST: db
+      DB_NAME: mydb
+      DB_USER: user
+      DB_PASSWORD: password
+    networks:
+      - backend-network
+      - frontend-network
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/data"]
+      interval: 3s
+      timeout: 10s
+      retries: 3
+
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8000:3000"
+    environement:
+      BACKEND_URL: http://backend:5000
+      networks:
+        - frontend-network
+      depends_on:
+        backend:
+          condition: service_healthy
+
+
+volumes:
+  db_data:

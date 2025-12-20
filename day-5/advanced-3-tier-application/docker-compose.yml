@@ -1,0 +1,112 @@
+version: '3.8'
+
+x-common-variables: &common-variables
+  APP_ENV: development
+  TZ: UTC
+
+services:
+  database:
+    image: postgres:15-alpine
+    hostname: database
+    environment:
+      <<: *common-variables
+      POSTGRES_DB: myapp
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppassword
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      backend_net:
+        ipv4_address: 172.20.0.10
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U appuser -d myapp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256<
+          cpus: '0.25'
+          
+  backend:
+    build: ./backend
+    hostname: backend
+    environment:
+      <<: *common-variables
+      DB_HOST: database
+      DB_NAME: myapp
+      DB_USER: appuser
+      DB_PASSWORD: apppassword
+    networks:
+      backend_net:
+        ipv4_address: 172.20.0.20
+      frontend_net:
+        ipv4_address: 172.21.0.20
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+    restart: unless-stopped
+
+    frontend:
+    build: ./frontend
+    hostname: frontend
+    environment:
+      <<: *common-variables
+      BACKEND_URL: http://backend:5000
+    ports:
+      - "8080:3000"
+    networks:
+      frontend_net:
+        ipv4_address: 172.21.0.30
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+    restart: unless-stopped
+
+networks:
+  backend_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+  frontend_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+
+
+volumes:
+  db_data:
+    name: myapp_db_data
