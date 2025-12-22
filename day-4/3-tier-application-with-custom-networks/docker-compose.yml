@@ -1,5 +1,6 @@
 version: '3.8'
 
+# Define custom networks for segmentation
 networks:
   frontend-network:
     driver: bridge
@@ -7,8 +8,9 @@ networks:
     driver: bridge
 
 services:
+  # Database Service - Only accessible from backend
   db:
-    image: postgres:lts
+    image: postgres:15
     environment:
       POSTGRES_DB: mydb
       POSTGRES_USER: user
@@ -23,10 +25,10 @@ services:
       timeout: 5s
       retries: 5
 
-
+  # Backend API - Accessible from frontend and can talk to database
   backend:
     build: ./backend
-    environement:
+    environment:
       DB_HOST: db
       DB_NAME: mydb
       DB_USER: user
@@ -39,23 +41,22 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/data"]
-      interval: 3s
+      interval: 30s
       timeout: 10s
       retries: 3
 
-
+  # Frontend - Only accessible from the outside world
   frontend:
     build: ./frontend
     ports:
       - "8000:3000"
-    environement:
+    environment:
       BACKEND_URL: http://backend:5000
-      networks:
-        - frontend-network
-      depends_on:
-        backend:
-          condition: service_healthy
-
+    networks:
+      - frontend-network
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
   db_data:
