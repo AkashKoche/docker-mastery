@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  # Jenkins Master with multiple persistence strategies
+  jenkins:
+    image: jenkins/jenkins:lts-jdk17
+    container_name: jenkins-master
+    environment:
+      - JENKINS_OPTS=--httpPort=8080
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false -Duser.timezone=UTC
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      # Named volume for Jenkins home (configuration, jobs, plugins)
+      - jenkins_home:/var/jenkins_home
+      
+      # Bind mount for host Docker socket (CAUTION: Security implications!)
+      - /var/run/docker.sock:/var/run/docker.sock
+      
+      # Bind mount for custom scripts and backups
+      - ./jenkins/scripts:/var/jenkins_scripts
+      - ./jenkins/backups:/var/jenkins_backups
+      
+      # tmpfs mount for temporary files (in-memory, faster, ephemeral)
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 100000000  # 100MB
+    networks:
+      - jenkins-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+    restart: unless-stopped
+    user: root  # Required for Docker socket access
+
+  # Docker-in-Docker service for isolated build environments
+  dind:
+    image: docker:dind
+    container_name: jenkins-dind
+    privileged: true
+    environment:
+      - DOCKER_TLS_CERTDIR=/certs
+    volumes:
+      - dind_storage:/var/lib/docker
+      - ./docker-registry:/var/lib/registry
+    networks:
+      - jenkins-net
+    healthcheck:
+      test: ["CMD", "docker", "info"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+    restart: unless-stopped
+
+  # Docker Registry for storing built images
+  registry:
+    image: registry:2
+    container_name: jenkins-registry
+    ports:
+      - "5000:5000"
+    environment:
+      - REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY=/var/lib/registry
+    volumes:
+      - ./docker-registry:/var/lib/registry
+    networks:
+      - jenkins-net
+    restart: unless-stopped
+
+volumes:
+  jenkins_home:
+    name: jenkins_data_volume
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/jenkins/data
+  dind_storage:
+    name: dind_storage_volume
+
+networks:
+  jenkins-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/24
